@@ -1,0 +1,45 @@
+name: X自動投稿
+
+on:
+  schedule:
+    - cron: "0 22 * * *" # 毎日 7:00（日本時間）。時刻を変えるときはここを世界標準時で書く。GitHubの混雑で数十分遅れることがある
+  workflow_dispatch: # GitHubの画面から手動でも動かせる
+    inputs:
+      mode:
+        description: "動かし方"
+        type: choice
+        default: お試し（投稿しない）
+        options:
+          - お試し（投稿しない）
+          - Xにつながるか確認
+          - 画像を送れるか確認（投稿しない）
+          - 本番（投稿する）
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests-oauthlib==2.0.0
+      - name: 投稿する
+        env:
+          DRY_RUN: ${{ inputs.mode == 'お試し（投稿しない）' && '1' || '0' }}
+          CHECK: ${{ inputs.mode == 'Xにつながるか確認' && '1' || '0' }}
+          CHECK_IMAGE: ${{ inputs.mode == '画像を送れるか確認（投稿しない）' && 'images/check.png' || '' }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: python post_next.py
+      - name: 投稿待ちリストの変更を保存
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add queue.md posted.md
+          git diff --cached --quiet || (git commit -m "投稿済みを記録" && git push)
