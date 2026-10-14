@@ -2,6 +2,8 @@
 
 スクショを撮る（無料）:
     python make_image.py shot https://発表ページ images/2026-10-13.png
+    下にお知らせの帯が残ったら、高さを指定して上の部分だけ撮り直す（例：600）:
+    python make_image.py shot https://発表ページ images/2026-10-13.png 600
 falで図を作る（1枚 約0.08ドル。スクショが撮れなかった日だけ使う）:
     python make_image.py fal "図の説明" images/2026-10-13.png
 
@@ -17,7 +19,7 @@ from pathlib import Path
 FAL_MODEL = "fal-ai/nano-banana-2"
 
 
-def shot(url, out):
+def shot(url, out, height=None):
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
@@ -34,7 +36,10 @@ def shot(url, out):
                 if ((pos === 'fixed' || pos === 'sticky') && /cookie|クッキー|consent/i.test(el.textContent || '')) el.remove();
             }
         }""")
-        page.screenshot(path=out)  # 画面に見えている上の部分だけ（16:9）
+        if height:  # 下に残った帯を切り落とす
+            page.screenshot(path=out, clip={"x": 0, "y": 0, "width": 1200, "height": int(height)})
+        else:
+            page.screenshot(path=out)  # 画面に見えている上の部分だけ（16:9）
         browser.close()
     print(f"スクショを保存しました: {out}")
 
@@ -62,10 +67,11 @@ def fal(prompt, out):
 
 
 def main():
-    if len(sys.argv) != 4 or sys.argv[1] not in ("shot", "fal"):
+    ok = (sys.argv[1:2] == ["shot"] and len(sys.argv) in (4, 5)) or (sys.argv[1:2] == ["fal"] and len(sys.argv) == 4)
+    if not ok:
         sys.exit(__doc__)
     Path(sys.argv[3]).parent.mkdir(parents=True, exist_ok=True)
-    {"shot": shot, "fal": fal}[sys.argv[1]](sys.argv[2], sys.argv[3])
+    {"shot": shot, "fal": fal}[sys.argv[1]](*sys.argv[2:])
 
 
 if __name__ == "__main__":
